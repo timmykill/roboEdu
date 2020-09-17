@@ -1,0 +1,31 @@
+#! /bin/sh
+
+
+#remember to create logdir if you use it
+SERVICE_NAME='xvfb-pup'
+PIDFILE="/var/run/$SERVICE_NAME.pid"
+STDOUT_LOGFILE="/var/log/$SERVICE_NAME/stdout.log"
+STDERR_LOGFILE="/var/log/$SERVICE_NAME/stderr.log"
+
+set -x
+
+run_main() {
+	xvfb-run --listen-tcp -n 99 -s "-ac -screen 0 1920x1080x24" su -c "node /home/yolo/pup/teamsTest.js" yolo -
+	rm $PIDFILE
+}
+
+case "$1" in
+	"start")
+		mkdir -p /var/log/$SERVICE_NAME
+		run_main > $STDOUT_LOGFILE 2> $STDERR_LOGFILE &
+		echo $! > $PIDFILE
+		;;
+	"stop")
+		kill $(cat $PIDFILE)
+		rm $PIDFILE
+		;;
+	*)
+		echo "usage $0 start|stop"
+		;;
+esac
+

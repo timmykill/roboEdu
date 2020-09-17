@@ -1,0 +1,31 @@
+#! /bin/sh
+
+
+#remember to create logdir if you use it
+SERVICE_NAME='ffmpeg-rec'
+PIDFILE="/var/run/$SERVICE_NAME.pid"
+STDOUT_LOGFILE="/var/log/$SERVICE_NAME/stdout.log"
+STDERR_LOGFILE="/var/log/$SERVICE_NAME/stderr.log"
+
+set -x
+
+run_main() {
+	ffmpeg -y -f alsa -ac 2 -ar 44100 -i hw:Loopback,1,0 -framerate 15 -f x11grab -draw_mouse 0 -s 1920x1080 -i :99 -c:v libx264rgb -crf 0 -preset ultrafast /root/reg.mp4
+	rm $PIDFILE
+}
+
+case "$1" in
+	"start")
+		mkdir -p /var/log/$SERVICE_NAME
+		run_main > $STDOUT_LOGFILE 2> $STDERR_LOGFILE &
+		echo $! > $PIDFILE
+		;;
+	"stop")
+		kill $(cat $PIDFILE)
+		rm $PIDFILE
+		;;
+	*)
+		echo "usage $0 start|stop"
+		;;
+esac
+

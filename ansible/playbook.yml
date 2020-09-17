@@ -1,0 +1,93 @@
+---
+- hosts: all
+  vars_files:
+    - ../secrets/unibo_login.yml
+  tasks:
+    - name: update
+      apt: update_cache=yes cache_valid_time=86400
+    - name: install stuff
+      apt:
+         pkg:
+             - dbus-x11
+             - alsa-utils
+             - alsa-base
+             - linux-modules-extra-5.4.0-47-generic #non durerà per molto
+             - linux-modules-extra-5.4.0-42-generic #non durerà per molto
+             - tmux
+             - nodejs
+             - npm
+             - libnss3
+             - ffmpeg
+             - xvfb
+             - xfce4
+             - libgbm-dev
+    - name: user yolo
+      user:
+        name: yolo
+        shell: /bin/bash
+        groups: audio,sudo,voice,users,staff
+        uid: 1666 
+        append: yes
+    - name: crea cartella puppeteer
+      file:
+        path: /home/yolo/pup
+        state: directory
+        owner: yolo
+        group: yolo
+        mode: '0777'
+        recurse: yes
+    - name: alsa lookback module
+      modprobe:
+        name: snd-aloop
+        params: pcm_substreams=1
+    - name: copy alsa config
+      copy:
+        dest: /etc/asound.conf
+        src: ./stuff/asound.conf
+        mode: '0666'
+    - name: alsa
+      shell:
+        cmd: "alsactl init"
+      ignore_errors: yes
+    - name: install puppeter
+      npm:
+        name: puppeteer
+        path: /home/yolo/pup
+      become: true
+      become_user: yolo
+    - name: copy pup test script
+      copy:
+        dest: /home/yolo/pup/ytTest.js
+        src: ../puppeteer/ytTest.js
+        owner: yolo
+        group: yolo
+        mode: '0666'
+    - name: copy pup script
+      template:
+        dest: /home/yolo/pup/teamsTest.js
+        src: ../puppeteer/teamsTest.js.j2
+        owner: yolo
+        group: yolo
+        mode: '0666'
+    - name: tmux start recording
+      shell: tmux new-session \; send-keys 'xvfb-run --listen-tcp -s "-ac -screen 0 1920x1080x24" su -c "node /home/yolo/pup/teamsTest.js" yolo -' C-m \; split-window -v \; send-keys 'ffmpeg -y -f alsa -ac 2 -ar 44100 -i hw:Loopback,1,0 -framerate 15 -f x11grab -draw_mouse 0 -s 1920x1080 -i :99 -c:v libx264rgb -crf 0 -preset ultrafast /root/reg.mkv' C-m \; detach 
+      ignore_errors: yes
+# would be very nice if this worked, but it doesnt
+#    - name: copy rc.xvfb
+#      copy:
+#        src: ./stuff/rc.xvfb-pup
+#        dest: /usr/local/sbin/rc.xvfb-pup
+#        mode: '0777'
+#    - name: copy rc.ffmpeg
+#      copy:
+#        src: ./stuff/rc.ffmpeg-rec 
+#        dest: /usr/local/sbin/rc.ffmpeg-rec
+#        mode: '0777'
+#    - name: start xvfb
+#      command:
+#        cmd: "/usr/local/sbin/rc.xvfb-pup start"
+#        creates: /var/run/xvfb-pup.pid
+#    - name: start ffmpeg
+#      command:
+#        cmd: "/usr/local/sbin/rc.ffmpeg-rec start"
+#        creates: /var/run/ffmpeg-rec.pid

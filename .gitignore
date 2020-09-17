@@ -1,0 +1,6 @@
+*.tfstate
+*.ini
+secrets/*
+regs/*
+puppeteer/package-lock.json
+puppeteer/node_modules/*
