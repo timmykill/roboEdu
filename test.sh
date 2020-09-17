@@ -48,6 +48,7 @@ record_start() {
 record_stop() {
 	counter=$1
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
+	sleep 5
 	scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg.mkv $ROOT/regs/${NOME_CORSO}-${ANNO}-${ID}_${counter}.mkv
 	cd terraform
 	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -state $TFSTATE -auto-approve
@@ -80,17 +81,11 @@ curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale
 		start=$(echo $i | cut -d' ' -f1)
 		end=$(echo $i | cut -d' ' -f2)
 		teams=$(echo $i | cut -d' ' -f3)
-		seconds_till_start=$(echo `date -d $start '+%s'` ' - ' `date '+%s'` | bc)
 		link_goodpart=$(echo $teams | grep -oE 'meeting_[^%]+')
 		link="https://teams.microsoft.com/_\#/pre-join-calling/19:${link_goodpart}@thread.v2"
-		seconds_till_end=$(echo `date -d $end '+%s'` ' - ' `date '+%s'` | bc)
-		test $seconds_till_end -gt 0 || continue
-		echo waiting for $seconds_till_start secondi
-		test $seconds_till_start -gt 0 && sleep $seconds_till_start
 		record_start $link
-		echo waiting for $seconds_till_end secondi
-		seconds_till_end=$(echo `date -d $end '+%s'` ' - ' `date '+%s'` | bc)
-		test $seconds_till_end -gt 0 && sleep $seconds_till_end
+		echo aspetto 2 minuti
+		sleep 2m
 		record_stop
 		counter=$(($counter + 1))
 	done 
