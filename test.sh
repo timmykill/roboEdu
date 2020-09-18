@@ -86,7 +86,7 @@ curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale
 		record_start $link
 		echo aspetto 2 minuti
 		sleep 2m
-		record_stop
+		record_stop $counter
 		counter=$(($counter + 1))
 	done 
 

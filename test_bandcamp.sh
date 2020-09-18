@@ -48,26 +48,22 @@ record_start() {
 record_stop() {
 	counter=$1
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
+	sleep 5
 	scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg.mkv $ROOT/regs/${NOME_CORSO}-${ANNO}-${ID}_${counter}.mkv
 	cd terraform
 	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -state $TFSTATE -auto-approve
 	cd $ROOT
 }
 
-if test $# -lt 2; then
-	echo Usage: $0 '<nomecorso> <anno> [id]'
-	exit
-fi
-
-NOME_CORSO=$1
-ANNO=$2
+NOME_CORSO='Bandcamp'
+ANNO='1'
 ID='0'
 ROOT=$(pwd)
 PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${ID}-key
 NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${ID}-client
 INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${ID}.ini"
 TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${ID}.tfstate"
-PUPTEST="teamsTest"
+PUPTEST="ytTest"
 export ANSIBLE_HOST_KEY_CHECKING="False"
 
 # create private key
@@ -76,24 +72,9 @@ echo 'y' | ssh-keygen -N "" -q -f $PRIV_KEY
 #get piano for today
 oggi=$(date '+%Y-%m-%d')
 counter=0
-curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .start + " " + .end + " " + .teams' |\
-	while read i; do
-		start=$(echo $i | cut -d' ' -f1)
-		end=$(echo $i | cut -d' ' -f2)
-		teams=$(echo $i | cut -d' ' -f3)
-		seconds_till_start=$(echo `date -d $start '+%s'` ' - ' `date '+%s'` | bc)
-		link_goodpart=$(echo $teams | grep -oE 'meeting_[^%]+')
-		link="https://teams.microsoft.com/_\#/pre-join-calling/19:${link_goodpart}@thread.v2"
-		seconds_till_end=$(echo `date -d $end '+%s'` ' - ' `date '+%s'` | bc)
-		test $seconds_till_end -gt 0 || continue
-		echo waiting for $seconds_till_start secondi
-		test $seconds_till_start -gt 0 && sleep $seconds_till_start
-		record_start $link
-		echo waiting for $seconds_till_end secondi
-		seconds_till_end=$(echo `date -d $end '+%s'` ' - ' `date '+%s'` | bc)
-		test $seconds_till_end -gt 0 && sleep $seconds_till_end
-		record_stop $counter
-		counter=$(($counter + 1))
-	done 
+record_start $link
+echo aspetto 2 minuti
+sleep 2m
+record_stop $counter
 
 #TODO delete all the junk left behind
