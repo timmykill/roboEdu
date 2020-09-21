@@ -9,10 +9,9 @@
       apt:
          pkg:
              - dbus-x11
-             - alsa-utils
-             - alsa-base
-             - linux-modules-extra-5.4.0-47-generic #non durerà per molto
-             - linux-modules-extra-5.4.0-42-generic #non durerà per molto
+             - pulseaudio
+             - pulseaudio-utils
+             - pulsemixer
              - tmux
              - nodejs
              - npm
@@ -21,6 +20,9 @@
              - xvfb
              - xfce4
              - libgbm-dev
+    - name: install chrome
+      apt:
+        deb: https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
     - name: user yolo
       user:
         name: yolo
@@ -36,19 +38,6 @@
         group: yolo
         mode: '0777'
         recurse: yes
-    - name: alsa lookback module
-      modprobe:
-        name: snd-aloop
-        params: pcm_substreams=1
-    - name: copy alsa config
-      copy:
-        dest: /etc/asound.conf
-        src: ./stuff/asound.conf
-        mode: '0666'
-    - name: alsa
-      shell:
-        cmd: "alsactl init"
-      ignore_errors: yes
     - name: install puppeter
       npm:
         name: puppeteer
@@ -69,8 +58,16 @@
         owner: yolo
         group: yolo
         mode: '0666'
+    - name: cambia permessi xdg_runtime
+      file:
+        path: /run/user/0
+        state: directory
+        owner: 1666
+        group: 1666
+        mode: '0777'
+        recurse: yes
     - name: tmux start recording
-      shell: tmux new-session \; send-keys 'xvfb-run --listen-tcp -s "-ac -screen 0 1920x1080x24" su -c "node /home/yolo/pup/{{ test }}.js" yolo -' C-m \; split-window -v \; send-keys 'ffmpeg -y -f alsa -ac 2 -ar 44100 -i hw:Loopback,1,0 -framerate 15 -f x11grab -draw_mouse 0 -s 1920x1080 -i :99 -c:v libx264rgb -crf 0 -preset ultrafast /root/reg.mkv' C-m \; detach 
+      shell: tmux new-session \; send-keys 'su -c "pulseaudio -v" yolo -' C-m \; new-session \; send-keys 'xvfb-run --listen-tcp -s "-ac -screen 0 1920x1080x24" su -c "node /home/yolo/pup/{{ test }}.js" yolo -' C-m \; split-window -v \; send-keys 'su -c "ffmpeg -y -f pulse -ac 2 -i "auto_null.monitor" -framerate 15 -f x11grab -draw_mouse 0 -s 1920x1080 -i :99 -c:v libx264rgb -crf 0 -preset ultrafast /home/yolo/reg.mkv" yolo -' C-m \; detach 
       ignore_errors: yes
 # would be very nice if this worked, but it doesnt
 #    - name: copy rc.xvfb

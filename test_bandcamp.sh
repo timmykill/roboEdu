@@ -1,4 +1,3 @@
-#!/bin/sh
 
 retrieve_ip() {
 	jq -r ".resources[] | select(.name == \"myVps\") | .instances[].attributes.ipv4_address" $TFSTATE
@@ -49,7 +48,7 @@ record_stop() {
 	counter=$1
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
 	sleep 5
-	scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg.mkv $ROOT/regs/${NOME_CORSO}-${ANNO}-${ID}_${counter}.mkv
+	scp -i $PRIV_KEY root@`retrieve_ip`:/home/yolo/reg.mkv $ROOT/regs/${NOME_CORSO}-${ANNO}-${ID}_${counter}.mkv
 	cd terraform
 	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -state $TFSTATE -auto-approve
 	cd $ROOT
@@ -66,8 +65,14 @@ TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${ID}.tfstate"
 PUPTEST="ytTest"
 export ANSIBLE_HOST_KEY_CHECKING="False"
 
+if test "$1" = "destroy"; then
+	cd terraform
+	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -state $TFSTATE -auto-approve
+	exit
+fi
+
 # create private key
-echo 'y' | ssh-keygen -N "" -q -f $PRIV_KEY
+ssh-keygen -N "" -q -f $PRIV_KEY
 
 #get piano for today
 oggi=$(date '+%Y-%m-%d')
