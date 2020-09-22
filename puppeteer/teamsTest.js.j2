@@ -42,6 +42,19 @@ const puppeteer = require('puppeteer');
 	await page.waitForSelector('button[ng-click="ctrl.joinMeeting()"]');
 	await page.waitForTimeout(100);
 	await page.click('button[ng-click="ctrl.joinMeeting()"]');
+	
+	await page.waitForSelector('button[id="chat-button"]');
+	await page.waitForTimeout(100);
+	await page.click('button[id="chat-button"]');
+
+	await page.waitForSelector('button[id="callingButtons-showMoreBtn"]');
+	await page.waitForTimeout(100);
+	await page.click('button[id="callingButtons-showMoreBtn"]');
+	
+	await page.waitForSelector('button[id="full-screen-button"]');
+	await page.waitForTimeout(100);
+	await page.click('button[id="full-screen-button"]');
+
 
 	debugger;
 
