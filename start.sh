@@ -31,11 +31,23 @@ wait_machines() {
 
 record_start() {
 	link=$1
+	id=$2
+
+	PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-key
+	NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${id}-client
+	INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}.ini"
+	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}.tfstate"
+	PUPTEST="teamsTest"
+	export ANSIBLE_HOST_KEY_CHECKING="False"
+
+	# create private key
+	echo 'y' | ssh-keygen -N "" -q -f $PRIV_KEY
+	echo
 
 	# make terraform do stuff
 	cd ./terraform
 	terraform init
-	terraform apply -var="anno=$ANNO" -var="corso=$NOME_CORSO" -state $TFSTATE -auto-approve
+	terraform apply -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -state $TFSTATE -auto-approve
 	cd $ROOT
 	
 	make_inventory
@@ -48,12 +60,18 @@ record_start() {
 
 record_stop() {
 	counter=$1
-	nome="$2"
+	id=$2
+	
+	PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-key
+	NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${id}-client
+	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}.tfstate"
+
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
 	sleep 10s #in case ffmpeg needed this
-	scp -i $PRIV_KEY root@`retrieve_ip`:/home/yolo/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${ID}_${nome}_$(date '+%y%m%d')_${counter}.mkv"
+	ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset slow /root/reg_pass2.mkv '
+	scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg_pass2.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	cd terraform
-	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -state $TFSTATE -auto-approve
+	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -state $TFSTATE -auto-approve
 	cd $ROOT
 }
 
@@ -64,30 +82,20 @@ fi
 
 NOME_CORSO=$1
 ANNO=$2
-ID='0'
 ROOT=$(pwd)
-PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${ID}-key
-NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${ID}-client
-INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${ID}.ini"
-TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${ID}.tfstate"
-PUPTEST="teamsTest"
-export ANSIBLE_HOST_KEY_CHECKING="False"
-
-# create private key
-echo 'y' | ssh-keygen -N "" -q -f $PRIV_KEY
-echo
 
 #get piano for today
 oggi=$(date '+%Y-%m-%d')
 counter=0
-curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .start + " " + .end + " " + .teams + " " + .title' |\
+curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .start + " " + .end + " " + .teams + " " + .cod_modulo + " " + .title' |\
 	while read i; do
 		echo $counter
 		counter=$(($counter + 1))
 		start=$(echo $i | cut -d' ' -f1)
 		end=$(echo $i | cut -d' ' -f2)
 		teams=$(echo $i | cut -d' ' -f3)
-		nome=$(echo $i | cut -d' ' -f4- | tr ' /' '_:')
+		id=$(echo $i | cut -d' ' -f4)
+		nome=$(echo $i | cut -d' ' -f5-)
 		seconds_till_start=$(echo `date -d $start '+%s'` ' - ' `date '+%s'` | bc)
 		link_goodpart=$(echo $teams | grep -oE 'meeting_[^%]+')
 		link="https://teams.microsoft.com/_\#/pre-join-calling/19:${link_goodpart}@thread.v2"
@@ -97,11 +105,11 @@ curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale
 		echo waiting for $seconds_till_start secondi
 		echo per lezione: $nome
 		test $seconds_till_start -gt 0 && sleep $seconds_till_start
-		record_start $link
+		record_start $link $id
 		seconds_till_end=$(echo `date -d $end '+%s'` ' - ' `date '+%s'` | bc)
 		echo waiting for $seconds_till_end secondi
 		test $seconds_till_end -gt 0 && sleep $seconds_till_end
-		record_stop $counter "$nome"
+		record_stop $counter $id &
 	done 
 
 #TODO delete all the junk left behind
