@@ -54,7 +54,10 @@ const puppeteer = require('puppeteer');
 	await page.waitForSelector('button[id="full-screen-button"]');
 	await page.waitForTimeout(100);
 	await page.click('button[id="full-screen-button"]');
-
+	
+	await page.waitForSelector('button[ng-click="ctrl.closePopup($event)"]', {timeout: 0});
+	await page.waitForTimeout(100);
+	await page.click('button[ng-click="ctrl.closePopup($event)"]', {timeout: 0});
 
 	debugger;
 
