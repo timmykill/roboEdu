@@ -44,7 +44,7 @@ resource "hcloud_ssh_key"  "myKey" {
 resource "hcloud_server" "myVps" {
   name        = local.nomeVps
   image       = "ubuntu-20.04"
-  server_type = "cpx41"
+  server_type = "cpx21"
   ssh_keys    = ["${hcloud_ssh_key.myKey.name}"]
 }
 

@@ -96,17 +96,17 @@ curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale
 		teams=$(echo $i | cut -d' ' -f3)
 		id=$(echo $i | cut -d' ' -f4)
 		nome=$(echo $i | cut -d' ' -f5-)
-		seconds_till_start=$(echo `date -d $start '+%s'` ' - ' `date '+%s'` | bc)
+		seconds_till_start=$(printf '%s - (%s + 300)\n' `date -d $start '+%s'` `date '+%s'` | bc)
 		link_goodpart=$(echo $teams | grep -oE 'meeting_[^%]+')
 		link="https://teams.microsoft.com/_\#/pre-join-calling/19:${link_goodpart}@thread.v2"
-		seconds_till_end=$(echo `date -d $end '+%s'` ' - ' `date '+%s'` | bc)
+		seconds_till_end=$(printf '(%s + 600)  - %s' `date -d $end '+%s'` `date '+%s'` | bc)
 		test $seconds_till_end -gt 0 || echo skipping $nome
 		test $seconds_till_end -gt 0 || continue
 		echo waiting for $seconds_till_start secondi
 		echo per lezione: $nome
 		test $seconds_till_start -gt 0 && sleep $seconds_till_start
 		record_start $link $id
-		seconds_till_end=$(echo `date -d $end '+%s'` ' - ' `date '+%s'` | bc)
+		seconds_till_end=$(printf '(%s + 600)  - %s' `date -d $end '+%s'` `date '+%s'` | bc)
 		echo waiting for $seconds_till_end secondi
 		test $seconds_till_end -gt 0 && sleep $seconds_till_end
 		record_stop $counter $id &
