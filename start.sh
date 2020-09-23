@@ -68,7 +68,7 @@ record_stop() {
 
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
 	sleep 10s #in case ffmpeg needed this
-	ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset slow /root/reg_pass2.mkv '
+	ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset medium /root/reg_pass2.mkv '
 	scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg_pass2.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	cd terraform
 	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -state $TFSTATE -auto-approve
