@@ -1,6 +1,5 @@
 #!/bin/sh
 
-
 retrieve_ip() {
 	jq -r ".resources[] | select(.name == \"myVps\") | .instances[].attributes.ipv4_address" $TFSTATE
 }
@@ -29,21 +28,27 @@ wait_machines() {
 	sleep 10
 }
 
+
+screenshot() {
+	counter=$1
+	id=$2
+	tempo=$(( $3 - 900 )) #no screenshots gli ultimi 15 min
+	while test $tempo -gt 0; do
+		ssh -i $PRIV_KEY root@`retrieve_ip` 'DISPLAY=:99 import -window root /root/yolo.png'
+		scp -i $PRIV_KEY root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}_${counter}.png"
+		sleep 60
+		tempo=$(( $tempo - 60 ))
+	done
+}
+
 record_start() {
 	link=$1
 	id=$2
 
-	PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-key
-	NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${id}-client
-	INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}.ini"
-	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}.tfstate"
-	PUPTEST="teamsTest"
-	export ANSIBLE_HOST_KEY_CHECKING="False"
-
 	# create private key
 	echo 'y' | ssh-keygen -N "" -q -f $PRIV_KEY
 	echo
-
+	
 	# make terraform do stuff
 	cd ./terraform
 	terraform init
@@ -53,7 +58,6 @@ record_start() {
 	make_inventory
 	wait_machines
 
-	# TODO template using the link
 	ssh-keygen -R `retrieve_ip`
 	ansible-playbook -i $INVENTORY ${ROOT}/ansible/playbook.yml --extra-vars "link=$link test=$PUPTEST"
 }
@@ -62,10 +66,6 @@ record_stop() {
 	counter=$1
 	id=$2
 	
-	PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-key
-	NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${id}-client
-	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}.tfstate"
-
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
 	sleep 10s #in case ffmpeg needed this
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset medium /root/reg_pass2.mkv '
@@ -75,41 +75,141 @@ record_stop() {
 	cd $ROOT
 }
 
-if test $# -lt 2; then
-	echo Usage: $0 '<nomecorso> <anno> [id]'
+wait_and_record() {
+	#parse string
+	start=$1; shift
+	end=$1; shift
+	teams=$1; shift
+	id=$1; shift
+	nome="$@"
+
+	test -n "$FILTER" -a "$ONLYCORSO" != $id && exit
+
+	#make variables
+	PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-key
+	NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${id}-client
+	INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}.ini"
+	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}.tfstate"
+	export ANSIBLE_HOST_KEY_CHECKING="False"
+		
+	seconds_till_start=$(printf '%s - (%s + 300)\n' `date -d $start '+%s'` `date '+%s'` | bc)
+	link_goodpart=$(echo $teams | grep -oE 'meeting_[^%]+')
+	link="https://teams.microsoft.com/_\#/pre-join-calling/19:${link_goodpart}@thread.v2"
+	seconds_till_end=$(printf '(%s + 600)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc)
+
+	test $seconds_till_end -lt 0 && echo skipping $nome
+	test $seconds_till_end -lt 0 && exit
+	
+	echo waiting for $seconds_till_start secondi
+	echo per lezione: $nome - $id
+	test $seconds_till_start -gt 0 && sleep $seconds_till_start
+	record_start $link $id
+
+
+	seconds_till_end=$(printf '(%s + 600)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc)
+	echo waiting for $seconds_till_end secondi
+	echo per lezione: $nome - $id
+
+	screenshot $counter $id $seconds_till_end &
+	sleep $seconds_till_end
+	record_stop $counter $id
+	
+	#remove created files:
+	rm $PRIV_KEY $INVENTORY $TFSTATE
+}
+
+destroy_all() {
+	#get piano for today
+	oggi=$(date '+%Y-%m-%d')
+	counter=0
+	kill $(cat $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid)
+	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid
+	curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .cod_modulo' |\
+		while read line; do
+			counter=$(($counter + 1))
+			id=$line
+			# destroy terraform stuff
+			TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}.tfstate"
+			cd terraform
+			terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -state $TFSTATE -auto-approve
+			cd $ROOT
+			# remove files
+			PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-key
+			INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}.ini"
+			rm $PRIV_KEY $INVENTORY
+			rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
+			rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
+		done 
+		exit
+
+}
+
+show_help() {
+	echo "Usage: $0 [-d] <nomecorso> <anno> [id]"
+	echo -h help
+	echo -d destroy
+	echo -l localhost
+	echo "-v verbose (keep logs)"
+	echo -f filter [id] 
 	exit
+}
+
+###########
+# ENTRY POINT
+###########
+
+if test $# -lt 2; then
+	show_help
 fi
+
+while getopts ":hdlv" opt; do
+	case $opt in
+	"h") show_help; exit;;
+	"d") echo "destroy" ; shift; DESTROY=true ;;
+	"l") echo "localhost" ; shift; LOCALHOST=true ;;
+	"v") echo "verbose" ; shift; VERBOSE=true ;;
+	esac
+done
+
+while getopts ":f:" opt; do
+	case $opt in
+	"f") FILTER=true; ONLYCORSO=$OPTARG; shift; shift;;
+	esac
+done
 
 NOME_CORSO=$1
 ANNO=$2
 ROOT=$(pwd)
+PUPTEST="teamsTest"
+
+test -n "$DESTROY" && destroy_all
+
+#check if pid alredy exists
 
 #get piano for today
 oggi=$(date '+%Y-%m-%d')
 counter=0
-curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .start + " " + .end + " " + .teams + " " + .cod_modulo + " " + .title' |\
-	while read i; do
-		echo $counter
-		counter=$(($counter + 1))
-		start=$(echo $i | cut -d' ' -f1)
-		end=$(echo $i | cut -d' ' -f2)
-		teams=$(echo $i | cut -d' ' -f3)
-		id=$(echo $i | cut -d' ' -f4)
-		nome=$(echo $i | cut -d' ' -f5-)
-		seconds_till_start=$(printf '%s - (%s + 300)\n' `date -d $start '+%s'` `date '+%s'` | bc)
-		link_goodpart=$(echo $teams | grep -oE 'meeting_[^%]+')
-		link="https://teams.microsoft.com/_\#/pre-join-calling/19:${link_goodpart}@thread.v2"
-		seconds_till_end=$(printf '(%s + 600)  - %s' `date -d $end '+%s'` `date '+%s'` | bc)
-		test $seconds_till_end -gt 0 || echo skipping $nome
-		test $seconds_till_end -gt 0 || continue
-		echo waiting for $seconds_till_start secondi
-		echo per lezione: $nome
-		test $seconds_till_start -gt 0 && sleep $seconds_till_start
-		record_start $link $id
-		seconds_till_end=$(printf '(%s + 600)  - %s' `date -d $end '+%s'` `date '+%s'` | bc)
-		echo waiting for $seconds_till_end secondi
-		test $seconds_till_end -gt 0 && sleep $seconds_till_end
-		record_stop $counter $id &
-	done 
 
-#TODO delete all the junk left behind
+echo $$ > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid
+
+# no process substitution in P0SIX sh
+tmpdir=$(mktemp -d)
+exec 3> $tmpdir/fd3
+
+curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .start + " " + .end + " " + .teams + " " + .cod_modulo + " " + .title' > $tmpdir/fd3
+while read line; do
+	counter=$(($counter + 1))
+	wait_and_record $line > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log 2>&1 &
+	echo $! > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
+done < $tmpdir/fd3
+
+rm -r $tmpdir
+
+while test $counter -gt 0; do
+	wait $(cat $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid)
+	echo $NOME_CORSO-$ANNO-$counter ha finito
+	test -z VERBOSE && rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
+	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
+	counter=$(($counter - 1))
+done
+rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid

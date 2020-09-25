@@ -20,6 +20,7 @@
              - xvfb
              - xfce4
              - libgbm-dev
+             - imagemagick
     - name: install chrome
       apt:
         deb: https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
