@@ -46,6 +46,7 @@ screenshot() {
 record_start() {
 	link=$1
 	id=$2
+	counter=$3
 
 	# create private key
 	echo 'n' | ssh-keygen -N "" -q -f $PRIV_KEY
@@ -54,7 +55,7 @@ record_start() {
 	# make terraform do stuff
 	cd ./terraform
 	terraform init
-	terraform apply -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -state $TFSTATE -auto-approve
+	terraform apply -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
 	cd $ROOT
 	
 	make_inventory
@@ -75,7 +76,7 @@ record_stop() {
 	scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg_pass2.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	#scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	cd terraform
-	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -state $TFSTATE -auto-approve
+	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
 	cd $ROOT
 }
 
@@ -108,7 +109,7 @@ wait_and_record() {
 	echo waiting for $seconds_till_start secondi
 	echo per lezione: $nome - $id
 	test $seconds_till_start -gt 0 && sleep $seconds_till_start
-	record_start $link $id
+	record_start $link $id $counter
 
 
 	seconds_till_end=$(printf '(%s + 600)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc)
@@ -136,7 +137,7 @@ destroy_all() {
 			# destroy terraform stuff
 			TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}.tfstate"
 			cd terraform
-			terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -state $TFSTATE -auto-approve
+			terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
 			cd $ROOT
 			# remove files
 			PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-key

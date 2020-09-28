@@ -11,11 +11,15 @@ variable "anno" {
 variable "id" {
   type = string
   description = "id univoco della macchina"
-  default = 0
+}
+
+variable "counter" {
+  type = string
+  description = "id univoco della macchina"
 }
 
 locals {
-	nomeRoba = join("-", [var.corso, var.anno, var.id])
+	nomeRoba = join("-", [var.corso, var.anno, var.id, var.counter])
 	nomeKey = join("-", [local.nomeRoba, "key"])
 	pathKey = join("", ["../secrets/", local.nomeKey])
 	nomeVps = join("-", [local.nomeRoba, "client"])
