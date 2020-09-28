@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 retrieve_ip() {
 	jq -r ".resources[] | select(.name == \"myVps\") | .instances[].attributes.ipv4_address" $TFSTATE
 }
@@ -46,7 +48,7 @@ record_start() {
 	id=$2
 
 	# create private key
-	echo 'y' | ssh-keygen -N "" -q -f $PRIV_KEY
+	echo 'n' | ssh-keygen -N "" -q -f $PRIV_KEY
 	echo
 	
 	# make terraform do stuff
@@ -68,8 +70,10 @@ record_stop() {
 	
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
 	sleep 10s #in case ffmpeg needed this
+	#TODO find solution for second pass
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset medium /root/reg_pass2.mkv '
 	scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg_pass2.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
+	#scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	cd terraform
 	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -state $TFSTATE -auto-approve
 	cd $ROOT
@@ -77,6 +81,7 @@ record_stop() {
 
 wait_and_record() {
 	#parse string
+	counter=$1; shift
 	start=$1; shift
 	end=$1; shift
 	teams=$1; shift
@@ -86,10 +91,10 @@ wait_and_record() {
 	test -n "$FILTER" -a "$ONLYCORSO" != $id && exit
 
 	#make variables
-	PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-key
-	NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${id}-client
-	INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}.ini"
-	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}.tfstate"
+	PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-${counter}-key
+	NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${id}-${counter}-client
+	INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}-${counter}.ini"
+	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}-${counter}.tfstate"
 	export ANSIBLE_HOST_KEY_CHECKING="False"
 		
 	seconds_till_start=$(printf '%s - (%s + 300)\n' `date -d $start '+%s'` `date '+%s'` | bc)
@@ -122,7 +127,7 @@ destroy_all() {
 	#get piano for today
 	oggi=$(date '+%Y-%m-%d')
 	counter=0
-	kill $(cat $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid)
+	kill -$(cat $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid)
 	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid
 	curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .cod_modulo' |\
 		while read line; do
@@ -199,7 +204,7 @@ exec 3> $tmpdir/fd3
 curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .start + " " + .end + " " + .teams + " " + .cod_modulo + " " + .title' > $tmpdir/fd3
 while read line; do
 	counter=$(($counter + 1))
-	wait_and_record $line > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log 2>&1 &
+	wait_and_record $counter $line > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log 2>&1 &
 	echo $! > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
 done < $tmpdir/fd3
 
