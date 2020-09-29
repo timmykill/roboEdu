@@ -38,8 +38,8 @@ screenshot() {
 	while test $tempo -gt 0; do
 		ssh -i $PRIV_KEY root@`retrieve_ip` 'DISPLAY=:99 import -window root /root/yolo.png'
 		scp -i $PRIV_KEY root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}_${counter}.png"
-		sleep 60
-		tempo=$(( $tempo - 60 ))
+		sleep 10
+		tempo=$(( $tempo - 10 ))
 	done
 }
 
