@@ -30,6 +30,7 @@ wait_machines() {
 
 
 screenshot() {
+	set +e
 	counter=$1
 	id=$2
 	tempo=$(( $3 - 900 )) #no screenshots gli ultimi 15 min
