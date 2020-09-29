@@ -1,7 +1,5 @@
 #!/bin/sh
 
-set -e
-
 retrieve_ip() {
 	jq -r ".resources[] | select(.name == \"myVps\") | .instances[].attributes.ipv4_address" $TFSTATE
 }
@@ -125,10 +123,11 @@ wait_and_record() {
 }
 
 destroy_all() {
+	set +e
 	#get piano for today
 	oggi=$(date '+%Y-%m-%d')
 	counter=0
-	kill -$(cat $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid)
+	kill -TERM -$(cat $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid)
 	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid
 	curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .cod_modulo' |\
 		while read line; do
@@ -163,6 +162,8 @@ show_help() {
 ###########
 # ENTRY POINT
 ###########
+
+set -e
 
 if test $# -lt 2; then
 	show_help
