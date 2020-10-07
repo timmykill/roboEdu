@@ -36,10 +36,11 @@ screenshot() {
 	tempo=$(( $3 - 900 )) #no screenshots gli ultimi 15 min
 	while test $tempo -gt 0; do
 		ssh -i $PRIV_KEY root@`retrieve_ip` 'DISPLAY=:99 import -window root /root/yolo.png'
-		scp -i $PRIV_KEY root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}_${counter}.png"
+		scp -i $PRIV_KEY root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${counter}.png"
 		sleep 10
 		tempo=$(( $tempo - 10 ))
 	done
+	rm "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${counter}.png"
 }
 
 record_start() {
@@ -48,8 +49,10 @@ record_start() {
 	counter=$3
 
 	# create private key
+	set +e
 	echo 'n' | ssh-keygen -N "" -q -f $PRIV_KEY
 	echo
+	set -e
 	
 	# make terraform do stuff
 	cd ./terraform
@@ -91,7 +94,7 @@ wait_and_record() {
 	test -n "$FILTER" -a "$ONLYCORSO" != $id && exit
 
 	#make variables
-	PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-${counter}-key
+	PRIV_KEY=${ROOT}/secrets/ssh/${NOME_CORSO}-${ANNO}-${counter}-key
 	NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${id}-${counter}-client
 	INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}-${counter}.ini"
 	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}-${counter}.tfstate"
@@ -140,7 +143,7 @@ destroy_all() {
 			terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
 			cd $ROOT
 			# remove files
-			PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-key
+			PRIV_KEY=${ROOT}/secrets/ssh/${NOME_CORSO}-${ANNO}-${counter}-key
 			INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}.ini"
 			rm $PRIV_KEY $INVENTORY
 			rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
