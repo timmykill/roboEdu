@@ -1,8 +1,6 @@
 #!/bin/sh
 
 
-set -x
-
 retrieve_ip() {
 	jq -r ".resources[] | select(.name == \"myVps\") | .instances[].attributes.ipv4_address" $TFSTATE
 }
@@ -103,8 +101,6 @@ wait_and_record() {
 		echo skipped note $FILTER_NOTE_STRING
 		exit
 	fi
-
-	exit # debug
 
 	#make variables
 	PRIV_KEY=${ROOT}/secrets/ssh/${NOME_CORSO}-${ANNO}-${counter}-key
