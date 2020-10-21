@@ -1,5 +1,6 @@
 #!/bin/sh
 
+
 retrieve_ip() {
 	jq -r ".resources[] | select(.name == \"myVps\") | .instances[].attributes.ipv4_address" $TFSTATE
 }
@@ -48,7 +49,9 @@ record_start() {
 	counter=$3
 
 	# create private key
+	set +e
 	echo 'n' | ssh-keygen -N "" -q -f $PRIV_KEY
+	set -e
 	echo
 	
 	# make terraform do stuff
@@ -71,9 +74,9 @@ record_stop() {
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
 	sleep 10s #in case ffmpeg needed this
 	#TODO find solution for second pass
-	ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset medium /root/reg_pass2.mkv '
-	scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg_pass2.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
-	#scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
+	#ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset medium /root/reg_pass2.mkv '
+	#scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg_pass2.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
+	scp -i $PRIV_KEY root@`retrieve_ip`:/home/yolo/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	cd terraform
 	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
 	cd $ROOT
@@ -86,9 +89,17 @@ wait_and_record() {
 	end=$1; shift
 	teams=$1; shift
 	id=$1; shift
+	note=$1; shift
 	nome="$@"
 
-	test -n "$FILTER" -a "$ONLYCORSO" != $id && exit
+	if test -n "$FILTER_CORSO" -a "$FILTER_CORSO_STRING" != $id; then
+		echo skipped not corso $FILTER_CORSO_STRING
+		exit
+	fi
+	if test -n "$FILTER_NOTE" -a $note = "_${FILTER_NOTE_STRING}_"; then
+		echo skipped note $FILTER_NOTE_STRING
+		exit
+	fi
 
 	#make variables
 	PRIV_KEY=${ROOT}/secrets/${NOME_CORSO}-${ANNO}-${id}-${counter}-key
@@ -102,8 +113,10 @@ wait_and_record() {
 	link="https://teams.microsoft.com/_\#/pre-join-calling/19:${link_goodpart}@thread.v2"
 	seconds_till_end=$(printf '(%s + 600)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc)
 
-	test $seconds_till_end -lt 0 && echo skipping $nome
-	test $seconds_till_end -lt 0 && exit
+	if test $seconds_till_end -lt 0; then
+		echo skipping $nome
+		exit
+	fi
 	
 	echo waiting for $seconds_till_start secondi
 	echo per lezione: $nome - $id
@@ -156,7 +169,8 @@ show_help() {
 	echo -d destroy
 	echo -l localhost
 	echo "-v verbose (keep logs)"
-	echo -f filter [id] 
+	echo "-f filter [id] //this is a positive filter, it will record just that corso" 
+	echo "-n filter [note] //this is a negative filter, it will skip selected note" 
 	exit
 }
 
@@ -170,18 +184,14 @@ if test $# -lt 2; then
 	show_help
 fi
 
-while getopts ":hdlv" opt; do
+while getopts ":h:d:l:v:f::n:" opt; do
 	case $opt in
-	"h") show_help; exit;;
-	"d") echo "destroy" ; shift; DESTROY=true ;;
-	"l") echo "localhost" ; shift; LOCALHOST=true ;;
-	"v") echo "verbose" ; shift; VERBOSE=true ;;
-	esac
-done
-
-while getopts ":f:" opt; do
-	case $opt in
-	"f") FILTER=true; ONLYCORSO=$OPTARG; shift; shift;;
+		"h") show_help; exit;;
+		"d") echo "destroy" ; shift; DESTROY=true ;;
+		"l") echo "localhost" ; shift; LOCALHOST=true ;;
+		"v") echo "verbose" ; shift; VERBOSE=true ;;
+		"f") FILTER_CORSO=true; FILTER_CORSO_STRING=$OPTARG; shift; shift;;
+		"n") FILTER_NOTE=true; FILTER_NOTE_STRING=$OPTARG; shift; shift;;
 	esac
 done
 
@@ -204,7 +214,7 @@ echo $$ > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid
 tmpdir=$(mktemp -d)
 exec 3> $tmpdir/fd3
 
-curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .start + " " + .end + " " + .teams + " " + .cod_modulo + " " + .title' > $tmpdir/fd3
+curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .start + " " + .end + " " + .teams + " " + .cod_modulo + " _" + .note + "_ " + .title' > $tmpdir/fd3
 while read line; do
 	counter=$(($counter + 1))
 	wait_and_record $counter $line > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log 2>&1 &
@@ -218,6 +228,7 @@ while test $counter -gt 0; do
 	echo $NOME_CORSO-$ANNO-$counter ha finito
 	test -z VERBOSE && rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
 	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
+	rm $ROOT/screencaps/$NOME_CORSO-$ANNO-*.png
 	counter=$(($counter - 1))
 done
 rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid
