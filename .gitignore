@@ -1,6 +1,9 @@
 *.tfstate
 *.ini
+.*
+!/.gitignore
 secrets/*
 regs/*
 puppeteer/package-lock.json
 puppeteer/node_modules/*
+ansible/inventory/*

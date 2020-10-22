@@ -21,7 +21,7 @@ variable "counter" {
 locals {
 	nomeRoba = join("-", [var.corso, var.anno, var.id, var.counter])
 	nomeKey = join("-", [local.nomeRoba, "key"])
-	pathKey = join("", ["../secrets/", local.nomeKey])
+	pathKey = join("", ["../secrets/ssh/", local.nomeKey])
 	nomeVps = join("-", [local.nomeRoba, "client"])
 }
 

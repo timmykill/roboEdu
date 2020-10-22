@@ -52,8 +52,6 @@ record_start() {
 	set +e
 	echo 'n' | ssh-keygen -N "" -q -f $PRIV_KEY
 	set -e
-	echo
-	set -e
 	
 	# make terraform do stuff
 	cd ./terraform
@@ -103,7 +101,7 @@ wait_and_record() {
 	fi
 
 	#make variables
-	PRIV_KEY=${ROOT}/secrets/ssh/${NOME_CORSO}-${ANNO}-${counter}-key
+	PRIV_KEY=${ROOT}/secrets/ssh/${NOME_CORSO}-${ANNO}-${id}-${counter}-key
 	NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${id}-${counter}-client
 	INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}-${counter}.ini"
 	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}-${counter}.tfstate"
@@ -154,7 +152,7 @@ destroy_all() {
 			terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
 			cd $ROOT
 			# remove files
-			PRIV_KEY=${ROOT}/secrets/ssh/${NOME_CORSO}-${ANNO}-${counter}-key
+			PRIV_KEY=${ROOT}/secrets/ssh/${NOME_CORSO}-${ANNO}-${id}-${counter}-key
 			INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}.ini"
 			rm $PRIV_KEY $INVENTORY
 			rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
