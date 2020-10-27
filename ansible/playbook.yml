@@ -8,7 +8,7 @@
     - name: install stuff
       apt:
          pkg:
-             - dbus-x11
+             #             - dbus-x11
              - pulseaudio
              - pulseaudio-utils
              - pulsemixer
