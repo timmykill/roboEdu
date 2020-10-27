@@ -228,7 +228,7 @@ while test $counter -gt 0; do
 	echo $NOME_CORSO-$ANNO-$counter ha finito
 	test -z VERBOSE && rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
 	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
-	rm $ROOT/screencaps/$NOME_CORSO-$ANNO-*.png
+	rm $ROOT/screencaps/$NOME_CORSO-$ANNO-$counter.png
 	counter=$(($counter - 1))
 done
 rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid
