@@ -3,8 +3,9 @@
   vars_files:
     - ../secrets/unibo_login.yml
   tasks:
+  #https://github.com/ansible/ansible-modules-core/issues/2951#issuecomment-191892885 absolute state of ansible
     - name: update
-      apt: update_cache=yes cache_valid_time=86400
+      shell: apt-get update
     - name: install stuff
       apt:
          pkg:
