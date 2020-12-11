@@ -27,10 +27,6 @@ const puppeteer = require('puppeteer');
 	await page.waitForTimeout(100);
 	await page.click('input[id="idSIButton9"]');
 	
-	await page.waitForSelector('a.use-app-lnk');
-	await page.waitForTimeout(100);
-	await page.click('a.use-app-lnk');
-
 	await page.waitForSelector('div.teams-title');
 	await page.waitForTimeout(100);
 	await page.goto('{{ link }}');
