@@ -9,6 +9,11 @@ make_inventory() {
 	printf '%s ansible_user=root ansible_ssh_private_key_file="%s"\n' `retrieve_ip` $PRIV_KEY > $INVENTORY
 }
 
+logd() {
+	TIMESTAMP=$(date -Iseconds)
+	echo $TIMESTAMP - $@
+}
+
 wait_machines() {
 	ip=$(retrieve_ip)
 	# Reset the saved keys
@@ -18,9 +23,10 @@ wait_machines() {
 		if ssh -q -n -i "$PRIV_KEY" \
 				-o PasswordAuthentication=no \
 				-o StrictHostKeyChecking=no "root@$ip" 'true'; then
-			echo -e "\n\n[+] Success! $ip is ready."
+			echo -e '\n\n'
+			logd "Success! $ip is ready."
 			break
-			else
+		else
 			echo -n "."
 			sleep 1
 		fi
@@ -72,11 +78,12 @@ record_stop() {
 	
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
 	sleep 10s #in case ffmpeg needed this
-	echo Lezione finita, inizio a scaricarla
+	logd Lezione finita, inizio a scaricarla
 	#TODO find solution for second pass
 	#ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset medium /root/reg_pass2.mkv '
 	#scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg_pass2.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	scp -i $PRIV_KEY root@`retrieve_ip`:/home/yolo/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
+	logd Lezione scaricata 
 	cd terraform
 	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
 	cd $ROOT
@@ -93,11 +100,11 @@ wait_and_record() {
 	nome="$@"
 
 	if test -n "$FILTER_CORSO" -a "$FILTER_CORSO_STRING" != $id; then
-		echo skipped not corso $FILTER_CORSO_STRING
+		logd skipped not corso $FILTER_CORSO_STRING
 		exit
 	fi
 	if test -n "$FILTER_NOTE" -a $note = "_${FILTER_NOTE_STRING}_"; then
-		echo skipped note $FILTER_NOTE_STRING
+		logd skipped note $FILTER_NOTE_STRING
 		exit
 	fi
 
@@ -114,23 +121,25 @@ wait_and_record() {
 	seconds_till_end=$(printf '(%s + 600)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc)
 
 	if test $seconds_till_end -lt 0; then
-		echo skipping $nome
+		logd skipping $nome
 		exit
 	fi
 	
-	echo waiting for $seconds_till_start secondi
-	echo per lezione: $nome - $id
+	logd waiting for $seconds_till_start secondi
+	logd per lezione: $nome - $id
 	test $seconds_till_start -gt 0 && sleep $seconds_till_start
 	record_start $link $id $counter
 
 
 	seconds_till_end=$(printf '(%s + 600)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc)
-	echo waiting for $seconds_till_end secondi
-	echo per lezione: $nome - $id
+	logd waiting for $seconds_till_end secondi
+	logd per lezione: $nome - $id
 
 	screenshot $counter $id $seconds_till_end &
 	sleep $seconds_till_end
 	record_stop $counter $id
+
+	logd tutto finito
 	
 	#remove created files:
 	rm $PRIV_KEY $INVENTORY $TFSTATE
