@@ -7,6 +7,7 @@ retrieve_ip() {
 
 make_inventory() {
 	printf '%s ansible_user=root ansible_ssh_private_key_file="%s"\n' `retrieve_ip` $PRIV_KEY > $INVENTORY
+	logd inventory creato
 }
 
 logd() {
@@ -16,10 +17,13 @@ logd() {
 
 wait_machines() {
 	ip=$(retrieve_ip)
+	logd "aspetto l'ip $ip"
 	# Reset the saved keys
+	set +e
 	ssh-keygen -R "$ip" 1>/dev/null 2>/dev/null
-	echo -n "[ ] Checking if $ip is ready"
-	for WAITED_SECONDS in $(seq 0 "$(( $SECONDS_TO_WAIT + 1 ))" ); do
+	set -e
+	echo -n "waiting"
+	for WAITED_SECONDS in $(seq 0  120); do
 		if ssh -q -n -i "$PRIV_KEY" \
 				-o PasswordAuthentication=no \
 				-o StrictHostKeyChecking=no "root@$ip" 'true'; then
@@ -42,7 +46,7 @@ screenshot() {
 	tempo=$(( $3 - 900 )) #no screenshots gli ultimi 15 min
 	while test $tempo -gt 0; do
 		ssh -i $PRIV_KEY root@`retrieve_ip` 'DISPLAY=:99 import -window root /root/yolo.png'
-		scp -i $PRIV_KEY root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${counter}.png"
+		scp -i $PRIV_KEY root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}-${counter}.png"
 		sleep 10
 		tempo=$(( $tempo - 10 ))
 	done
@@ -99,8 +103,8 @@ wait_and_record() {
 	note=$1; shift
 	nome="$@"
 
-	if test -n "$FILTER_CORSO" -a "$FILTER_CORSO_STRING" != $id; then
-		logd skipped not corso $FILTER_CORSO_STRING
+	if test -n "$FILTER_CORSO" && ! (echo "$FILTER_CORSO_STRING" | grep $id > /dev/null); then
+		logd skipped corso $id - not corso $FILTER_CORSO_STRING
 		exit
 	fi
 	if test -n "$FILTER_NOTE" -a $note = "_${FILTER_NOTE_STRING}_"; then
@@ -121,7 +125,7 @@ wait_and_record() {
 	seconds_till_end=$(printf '(%s + 600)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc)
 
 	if test $seconds_till_end -lt 0; then
-		logd skipping $nome
+		logd skipping $nome - alredy ended
 		exit
 	fi
 	
@@ -233,12 +237,14 @@ done < $tmpdir/fd3
 rm -r $tmpdir
 
 while test $counter -gt 0; do
+	set +e
 	wait $(cat $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid)
+	set -e
 	echo $NOME_CORSO-$ANNO-$counter ha finito
 	test -z VERBOSE && rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
 	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
 	set +e
-	rm $ROOT/screencaps/$NOME_CORSO-$ANNO-$counter.png
+	rm $ROOT/screencaps/$NOME_CORSO-$ANNO-*-$counter.png
 	set -e
 	counter=$(($counter - 1))
 done
