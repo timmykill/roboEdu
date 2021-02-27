@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 
 retrieve_ip() {
@@ -62,13 +62,13 @@ record_start() {
 	set +e
 	echo 'n' | ssh-keygen -N "" -q -f $PRIV_KEY
 	set -e
-	
+
 	# make terraform do stuff
 	cd ./terraform
 	terraform init
 	terraform apply -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
 	cd $ROOT
-	
+
 	make_inventory
 	wait_machines
 
@@ -79,7 +79,7 @@ record_start() {
 record_stop() {
 	counter=$1
 	id=$2
-	
+
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
 	sleep 10s #in case ffmpeg needed this
 	logd Lezione finita, inizio a scaricarla
@@ -87,7 +87,7 @@ record_stop() {
 	#ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset medium /root/reg_pass2.mkv '
 	#scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg_pass2.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	scp -i $PRIV_KEY root@`retrieve_ip`:/home/yolo/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
-	logd Lezione scaricata 
+	logd Lezione scaricata
 	cd terraform
 	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
 	cd $ROOT
@@ -103,14 +103,18 @@ wait_and_record() {
 	note=$1; shift
 	nome="$@"
 
-	if test -n "$FILTER_CORSO" && ! (echo "$FILTER_CORSO_STRING" | grep $id > /dev/null); then
-		logd skipped corso $id - not corso $FILTER_CORSO_STRING
+	if test -n "$FILTER_CORSO" && ! (echo "${filter_corsi[@]}" | grep $id > /dev/null); then
+		logd skipped corso $id - not corso ${filter_corsi[@]}
 		exit
 	fi
-	if test -n "$FILTER_NOTE" -a $note = "_${FILTER_NOTE_STRING}_"; then
-		logd skipped note $FILTER_NOTE_STRING
-		exit
-	fi
+
+	# eliminate entries with specified unwanted notes
+	for unwanted in ${filter_notes[@]}; do
+		if test -n "$FILTER_NOTE" -a $note = "_${unwanted}_"; then
+			logd skipped note $unwanted
+			exit
+		fi
+	done
 
 	#make variables
 	PRIV_KEY=${ROOT}/secrets/ssh/${NOME_CORSO}-${ANNO}-${id}-${counter}-key
@@ -118,7 +122,7 @@ wait_and_record() {
 	INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}-${counter}.ini"
 	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}-${counter}.tfstate"
 	export ANSIBLE_HOST_KEY_CHECKING="False"
-		
+
 	seconds_till_start=$(printf '%s - (%s + 300)\n' `date -d $start '+%s'` `date '+%s'` | bc)
 	link_goodpart=$(echo $teams | grep -oE 'meeting_[^%]+')
 	link="https://teams.microsoft.com/_\#/pre-join-calling/19:${link_goodpart}@thread.v2"
@@ -128,7 +132,7 @@ wait_and_record() {
 		logd skipping $nome - alredy ended
 		exit
 	fi
-	
+
 	logd waiting for $seconds_till_start secondi
 	logd per lezione: $nome - $id
 	test $seconds_till_start -gt 0 && sleep $seconds_till_start
@@ -144,7 +148,7 @@ wait_and_record() {
 	record_stop $counter $id
 
 	logd tutto finito
-	
+
 	#remove created files:
 	rm $PRIV_KEY $INVENTORY $TFSTATE
 }
@@ -171,7 +175,7 @@ destroy_all() {
 			rm $PRIV_KEY $INVENTORY
 			rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
 			rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
-		done 
+		done
 		exit
 
 }
@@ -182,8 +186,8 @@ show_help() {
 	echo -d destroy
 	echo -l localhost
 	echo "-v verbose (keep logs)"
-	echo "-f filter [id] //this is a positive filter, it will record just that corso" 
-	echo "-n filter [note] //this is a negative filter, it will skip selected note" 
+	echo "-f filter [id] //this is a positive filter, it will record just that corso"
+	echo "-n filter [note] //this is a negative filter, it will skip selected note"
 	exit
 }
 
@@ -197,16 +201,20 @@ if test $# -lt 2; then
 	show_help
 fi
 
-while getopts ":h:d:l:v:f::n:" opt; do
+filter_corsi=();
+filter_notes=();
+
+while getopts ":hdlvf:n:" opt; do
 	case $opt in
 		"h") show_help; exit;;
-		"d") echo "destroy" ; shift; DESTROY=true ;;
-		"l") echo "localhost" ; shift; LOCALHOST=true ;;
-		"v") echo "verbose" ; shift; VERBOSE=true ;;
-		"f") FILTER_CORSO=true; FILTER_CORSO_STRING=$OPTARG; shift; shift;;
-		"n") FILTER_NOTE=true; FILTER_NOTE_STRING=$OPTARG; shift; shift;;
+		"d") echo "destroy"; DESTROY=true;;
+		"l") echo "localhost"; LOCALHOST=true;;
+		"v") echo "verbose"; VERBOSE=true;;
+		"f") FILTER_CORSO=true; filter_corsi+=("$OPTARG");;
+		"n") FILTER_NOTE=true; filter_notes+=("$OPTARG");;
 	esac
 done
+shift $(($OPTIND -1))
 
 NOME_CORSO=$1
 ANNO=$2
