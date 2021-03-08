@@ -50,7 +50,7 @@ screenshot() {
 		sleep 10
 		tempo=$(( $tempo - 10 ))
 	done
-	rm "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${counter}.png"
+	rm "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}-${counter}.png"
 }
 
 record_start() {
@@ -238,6 +238,7 @@ exec 3> $tmpdir/fd3
 curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .start + " " + .end + " " + .teams + " " + .cod_modulo + " _" + .note + "_ " + .title' > $tmpdir/fd3
 while read line; do
 	counter=$(($counter + 1))
+	logd controllo $line 
 	wait_and_record $counter $line > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log 2>&1 &
 	echo $! > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
 done < $tmpdir/fd3
