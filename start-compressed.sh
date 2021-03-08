@@ -50,7 +50,7 @@ screenshot() {
 		sleep 10
 		tempo=$(( $tempo - 10 ))
 	done
-	rm "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}-${counter}.png"
+	rm "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${counter}.png"
 }
 
 record_start() {
@@ -73,7 +73,7 @@ record_start() {
 	wait_machines
 
 	ssh-keygen -R `retrieve_ip`
-	ansible-playbook -i $INVENTORY ${ROOT}/ansible/playbook.yml --extra-vars "link=$link test=$PUPTEST"
+	ansible-playbook -i $INVENTORY ${ROOT}/ansible/playbook-compressed.yml --extra-vars "link=$link test=$PUPTEST"
 }
 
 record_stop() {

@@ -70,7 +70,7 @@
         recurse: yes
     - name: tmux start recording
       shell:
-        cmd: tmux new-session \; send-keys 'touch /root/started; su -c "pulseaudio -v" yolo -' C-m \; new-session \; send-keys 'xvfb-run --listen-tcp -s "-ac -screen 0 1920x1080x24" su -c "node /home/yolo/pup/{{ test }}.js" yolo -' C-m \; split-window -v \; send-keys 'su -c "ffmpeg -y -f pulse -ac 2 -i "auto_null.monitor" -framerate 15 -f x11grab -draw_mouse 0 -s 1920x1080 -i :99 -c:v libx264rgb -crf 10 -preset ultrafast /home/yolo/reg.mkv" yolo -' C-m \; detach 
+              cmd: tmux new-session \; send-keys 'touch /root/started; su -c "pulseaudio -v" yolo -' C-m \; new-session \; send-keys 'xvfb-run --listen-tcp -s "-ac -screen 0 1920x1080x24" su -c "node /home/yolo/pup/{{ test }}.js" yolo -' C-m \; split-window -v \; send-keys 'su -c "ffmpeg -y -f pulse -ac 2 -i "auto_null.monitor" -framerate 15 -f x11grab -draw_mouse 0 -s 1920x1080 -i :99 -c:v libx265 -crf 35 -preset medium /home/yolo/reg.mkv" yolo -' C-m \; detach 
         creates: /root/started
       ignore_errors: yes
 # would be very nice if this worked, but it doesnt
