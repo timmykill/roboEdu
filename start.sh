@@ -45,8 +45,8 @@ screenshot() {
 	id=$2
 	tempo=$(( $3 - 900 )) #no screenshots gli ultimi 15 min
 	while test $tempo -gt 0; do
-		ssh -i $PRIV_KEY root@`retrieve_ip` 'DISPLAY=:99 import -window root /root/yolo.png'
-		scp -i $PRIV_KEY root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}-${counter}.png"
+		ssh -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip` 'DISPLAY=:99 import -window root /root/yolo.png'
+		scp -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}-${counter}.png"
 		sleep 10
 		tempo=$(( $tempo - 10 ))
 	done
@@ -86,7 +86,7 @@ record_stop() {
 	#TODO find solution for second pass
 	#ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset medium /root/reg_pass2.mkv '
 	#scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg_pass2.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
-	scp -i $PRIV_KEY root@`retrieve_ip`:/home/yolo/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
+	scp -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip`:/home/yolo/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	logd Lezione scaricata 
 	cd terraform
 	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
