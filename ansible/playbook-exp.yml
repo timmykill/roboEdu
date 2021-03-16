@@ -74,4 +74,4 @@
         recurse: true
     - name: execute recording script
       script:
-        cmd: ../ansible/stuff/record.sh {{ test }}
+        cmd: ../ansible/stuff/record-exp.sh {{ test }}

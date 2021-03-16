@@ -9,3 +9,6 @@ logs_and_pid/*
 screencaps/*
 terraform/states/*
 tmux_starter.sh
+ansible/playbook-exp.yml
+start-ext.sh
+ansible/stuff/record-exp.sh

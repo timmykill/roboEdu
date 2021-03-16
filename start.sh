@@ -43,12 +43,13 @@ wait_machines() {
 screenshot() {
 	counter=$1
 	id=$2
-	tempo=$(( $3 - 900 )) #no screenshots gli ultimi 15 min
+	end=$3
+	tempo=$(printf '(%s - 300)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc) # no screenshot gli ultimi 15 minuti
 	while test $tempo -gt 0; do
 		ssh -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip` 'DISPLAY=:99 import -window root /root/yolo.png'
 		scp -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}-${counter}.png"
-		sleep 10
-		tempo=$(( $tempo - 10 ))
+		sleep 60
+		tempo=$(printf '(%s - 300)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc) 
 	done
 	rm "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}-${counter}.png"
 }
@@ -83,9 +84,6 @@ record_stop() {
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
 	sleep 10s #in case ffmpeg needed this
 	logd Lezione finita, inizio a scaricarla
-	#TODO find solution for second pass
-	#ssh -i $PRIV_KEY root@`retrieve_ip` 'ffmpeg -i /home/yolo/reg.mkv -c:v libx265 -crf 35 -preset medium /root/reg_pass2.mkv '
-	#scp -i $PRIV_KEY root@`retrieve_ip`:/root/reg_pass2.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	scp -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip`:/home/yolo/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
 	logd Lezione scaricata 
 	cd terraform
@@ -139,7 +137,7 @@ wait_and_record() {
 	logd waiting for $seconds_till_end secondi
 	logd per lezione: $nome - $id
 
-	screenshot $counter $id $seconds_till_end &
+	screenshot $counter $id $end &
 	sleep $seconds_till_end
 	record_stop $counter $id
 
@@ -187,9 +185,9 @@ show_help() {
 	exit
 }
 
-###########
-# ENTRY POINT
-###########
+############### 
+# ENTRY POINT #
+###############
 
 set -e
 
@@ -244,7 +242,7 @@ while test $counter -gt 0; do
 	test -z VERBOSE && rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
 	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
 	set +e
-	rm $ROOT/screencaps/$NOME_CORSO-$ANNO-*-$counter.png
+	rm -f $ROOT/screencaps/$NOME_CORSO-$ANNO-*-$counter.png
 	set -e
 	counter=$(($counter - 1))
 done
