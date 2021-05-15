@@ -12,3 +12,4 @@ tmux_starter.sh
 ansible/playbook-exp.yml
 start-exp.sh
 ansible/stuff/record-exp.sh
+rotate_logs.sh

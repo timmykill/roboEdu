@@ -47,11 +47,11 @@ screenshot() {
 	tempo=$(printf '(%s - 300)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc) # no screenshot gli ultimi 15 minuti
 	while test $tempo -gt 0; do
 		ssh -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip` 'DISPLAY=:99 import -window root /root/yolo.png'
-		scp -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}-${counter}.png"
+		scp -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip`:/root/yolo.png "$ROOT/screencaps/$NOME_CORSO-$ANNO-$id-$counter.png"
 		sleep 60
 		tempo=$(printf '(%s - 300)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc) 
 	done
-	rm "$ROOT/screencaps/${NOME_CORSO}-${ANNO}-${id}-${counter}.png"
+	rm "$ROOT/screencaps/$NOME_CORSO-$ANNO-$id-$counter.png"
 }
 
 record_start() {
@@ -84,7 +84,7 @@ record_stop() {
 	ssh -i $PRIV_KEY root@`retrieve_ip` 'killall -INT ffmpeg'
 	sleep 10s #in case ffmpeg needed this
 	logd Lezione finita, inizio a scaricarla
-	scp -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip`:/home/yolo/reg.mkv "$ROOT/regs/${NOME_CORSO}-${ANNO}-${id}_$(date '+%y%m%d')_${counter}.mkv"
+	scp -i $PRIV_KEY -o StrictHostKeyChecking=no root@`retrieve_ip`:/home/yolo/reg.mkv "$ROOT/regs/$NOME_CORSO-$ANNO-${id}_$(date '+%y%m%d')_$counter.mkv"
 	logd Lezione scaricata 
 	cd terraform
 	terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
@@ -111,13 +111,13 @@ wait_and_record() {
 	fi
 
 	#make variables
-	PRIV_KEY=${ROOT}/secrets/ssh/${NOME_CORSO}-${ANNO}-${id}-${counter}-key
-	NOME_MACCHINA=${NOME_CORSO}-${ANNO}-${id}-${counter}-client
-	INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}-${counter}.ini"
-	TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}-${counter}.tfstate"
+	PRIV_KEY=${ROOT}/secrets/ssh/$NOME_CORSO-$ANNO-$id-$counter-key
+	NOME_MACCHINA=$NOME_CORSO-$ANNO-$id-$counter-client
+	INVENTORY="${ROOT}/ansible/inventory/$NOME_CORSO-$ANNO-$id-$counter.ini"
+	TFSTATE="${ROOT}/terraform/states/$NOME_CORSO-$ANNO-$id-$counter.tfstate"
 	export ANSIBLE_HOST_KEY_CHECKING="False"
 		
-	seconds_till_start=$(printf '%s - (%s + 300)\n' `date -d $start '+%s'` `date '+%s'` | bc)
+	seconds_till_start=$(printf '%s - (%s + 600)\n' `date -d $start '+%s'` `date '+%s'` | bc)
 	link_goodpart=$(echo $teams | grep -oE 'meeting_[^%]+')
 	link="https://teams.microsoft.com/_\#/pre-join-calling/19:${link_goodpart}@thread.v2"
 	seconds_till_end=$(printf '(%s + 600)  - %s\n' `date -d $end '+%s'` `date '+%s'` | bc)
@@ -159,15 +159,15 @@ destroy_all() {
 			counter=$(($counter + 1))
 			id=$line
 			# destroy terraform stuff
-			TFSTATE="${ROOT}/terraform/states/${NOME_CORSO}-${ANNO}-${id}.tfstate"
+			TFSTATE="${ROOT}/terraform/states/$NOME_CORSO-$ANNO-$id.tfstate"
 			cd terraform
 			terraform destroy -var="anno=$ANNO" -var="corso=$NOME_CORSO" -var="id=$id" -var="counter=$counter" -state $TFSTATE -auto-approve
 			cd $ROOT
 			# remove files
-			PRIV_KEY=${ROOT}/secrets/ssh/${NOME_CORSO}-${ANNO}-${id}-${counter}-key
-			INVENTORY="${ROOT}/ansible/inventory/${NOME_CORSO}-${ANNO}-${id}.ini"
+			PRIV_KEY=${ROOT}/secrets/ssh/$NOME_CORSO-$ANNO-$id-$counter-key
+			INVENTORY="${ROOT}/ansible/inventory/$NOME_CORSO-$ANNO-$id.ini"
 			rm $PRIV_KEY $INVENTORY
-			rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
+			rm $ROOT/logs_and_pid/$NOME_CORSO-${ANNO}_${id}_$(date '+%y%m%d')_$counter.log
 			rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
 		done 
 		exit
@@ -182,6 +182,29 @@ show_help() {
 	echo "-v verbose (keep logs)"
 	echo "-f filter [id] //this is a positive filter, it will record just that corso" 
 	echo "-n filter [note] //this is a negative filter, it will skip selected note" 
+	echo "-m 'timeStart timeEnd URL ID' //this records manually from a teams meeting on the day it runs"
+	exit
+}
+
+manual(){
+	# M substitutes counter to specify that it's a manual recording
+	counter="M"
+	timeStart=$1 
+	timeEnd=$2
+	url=$3
+	ID=$4
+	wait_and_record $counter ${oggi}T$1 ${oggi}T$2 $3 $4 __ $NOME_CORSO $ANNO > $ROOT/logs_and_pid/$NOME_CORSO-${ANNO}_${ID}_$(date '+%y%m%d')_$counter.log 2>&1 &
+	echo $! > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
+	set +e
+	wait $(cat $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid)
+	set -e
+	echo $NOME_CORSO-$ANNO-$counter ha finito
+	test -z VERBOSE && rm $ROOT/logs_and_pid/${NOME_CORSO}-${ANNO}_*_$(date '+%y%m%d')_${counter}.log
+	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
+	set +e
+	rm -f $ROOT/screencaps/$NOME_CORSO-$ANNO-*-$counter.png
+	set -e
+	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid
 	exit
 }
 
@@ -195,7 +218,7 @@ if test $# -lt 2; then
 	show_help
 fi
 
-while getopts ":h:d:l:v:f::n:" opt; do
+while getopts ":h:d:l:v:m::f::n:" opt; do
 	case $opt in
 		"h") show_help; exit;;
 		"d") echo "destroy" ; shift; DESTROY=true ;;
@@ -203,6 +226,7 @@ while getopts ":h:d:l:v:f::n:" opt; do
 		"v") echo "verbose" ; shift; VERBOSE=true ;;
 		"f") FILTER_CORSO=true; FILTER_CORSO_STRING=$OPTARG; shift; shift;;
 		"n") FILTER_NOTE=true; FILTER_NOTE_STRING=$OPTARG; shift; shift;;
+		"m") MANUAL=true; MANUAL_STRING=$OPTARG; shift; shift;;
 	esac
 done
 
@@ -216,8 +240,11 @@ test -n "$DESTROY" && destroy_all
 #check if pid alredy exists
 
 #get piano for today
-oggi=$(date '+%Y-%m-%d')
+oggi=$(date '+%F')
 counter=0
+
+# manual recording
+test -n "$MANUAL" && manual $MANUAL_STRING
 
 echo $$ > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO.pid
 
@@ -227,8 +254,9 @@ exec 3> $tmpdir/fd3
 
 curl -s "https://corsi.unibo.it/laurea/$NOME_CORSO/orario-lezioni/@@orario_reale_json?anno=$ANNO&curricula=&start=$oggi&end=$oggi" | jq -r '.[] | .start + " " + .end + " " + .teams + " " + .cod_modulo + " _" + .note + "_ " + .title' > $tmpdir/fd3
 while read line; do
+	ID=$(echo $line | cut -d' ' -f4) # sucky hack
 	counter=$(($counter + 1))
-	wait_and_record $counter $line > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log 2>&1 &
+	wait_and_record $counter $line > $ROOT/logs_and_pid/$NOME_CORSO-${ANNO}_${ID}_$(date '+%y%m%d')_$counter.log 2>&1 &
 	echo $! > $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
 done < $tmpdir/fd3
 
@@ -239,7 +267,7 @@ while test $counter -gt 0; do
 	wait $(cat $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid)
 	set -e
 	echo $NOME_CORSO-$ANNO-$counter ha finito
-	test -z VERBOSE && rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.log
+	test -z VERBOSE && rm $ROOT/logs_and_pid/$NOME_CORSO-${ANNO}_*_$(date '+%y%m%d')_$counter.log
 	rm $ROOT/logs_and_pid/$NOME_CORSO-$ANNO-$counter.pid
 	set +e
 	rm -f $ROOT/screencaps/$NOME_CORSO-$ANNO-*-$counter.png
